@@ -1,39 +1,41 @@
-import os
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
-from sqlalchemy import create_engine, text
+from sqlalchemy import select
+from sqlalchemy.orm import Session
 
-
-def read_env(name: str) -> str:
-    """Читает обязательную переменную окружения."""
-    value = os.environ.get(name)
-    if value is None or value == "":
-        raise RuntimeError(f"Не задана переменная окружения {name}")
-    return value
-
-
-def check_database(url: str) -> str:
-    """Проверяет, что БД отвечает."""
-    engine = create_engine(url)
-    try:
-        with engine.connect() as connection:
-            connection.execute(text("SELECT 1"))
-        return "ok"
-    except Exception as error:
-        return f"error: {error.__class__.__name__}: {error}"
-    finally:
-        engine.dispose()
+from app.config import load_settings
+from app.db import check_engine, create_meta_engine
+from app.models import DataSource
+from app.sources import check_source
 
 
 def create_app() -> FastAPI:
     """Собирает приложение."""
-    app = FastAPI(title="bd_meta")
+    settings = load_settings()
+    meta_engine = create_meta_engine(settings.meta_db_url)
+
+    @asynccontextmanager
+    async def lifespan(app: FastAPI):
+        yield
+        meta_engine.dispose()
+
+    app = FastAPI(title="bd_meta", lifespan=lifespan)
 
     @app.get("/api/health")
     def health() -> dict:
-        return {
-            "meta_db": check_database(read_env("META_DB_URL")),
-            "source_db": check_database(read_env("SOURCE_DB_URL")),
-        }
+        meta_status = check_engine(meta_engine)
+        sources = []
+        if meta_status == "ok":
+            with Session(meta_engine) as session:
+                for source in session.scalars(select(DataSource).order_by(DataSource.id)):
+                    sources.append(
+                        {
+                            "id": source.id,
+                            "name": source.name,
+                            "status": check_source(source, settings.secret_key),
+                        }
+                    )
+        return {"meta_db": meta_status, "sources": sources}
 
     return app

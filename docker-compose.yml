@@ -19,20 +19,16 @@ services:
       timeout: 5s
       retries: 5
 
-  #frontend:
-  #  build:
-  #    context: .
-  #    dockerfile: Dockerfile
-  #    target: frontend
-  #    args:
-  #      NEXT_PUBLIC_API_BASE_URL: ""
-  #  restart: unless-stopped
-
   backend:
     build: ./backend
     environment:
       META_DB_URL: postgresql+psycopg://${META_DB_USER}:${META_DB_PASSWORD}@meta-db:5432/${META_DB_NAME}
-      SOURCE_DB_URL: mysql+pymysql://${SOURCE_DB_USER}:${SOURCE_DB_PASSWORD}@source-db:3306/${SOURCE_DB_NAME}?charset=utf8mb4
+      META_SECRET_KEY: ${META_SECRET_KEY}
+      SOURCE_DB_HOST: source-db
+      SOURCE_DB_PORT: "3306"
+      SOURCE_DB_NAME: ${SOURCE_DB_NAME}
+      SOURCE_DB_USER: ${SOURCE_DB_USER}
+      SOURCE_DB_PASSWORD: ${SOURCE_DB_PASSWORD}
     networks:
       - bd_meta_net
     depends_on:
@@ -45,6 +41,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 10
+      start_period: 60s
 
   source-db:
     image: mysql:8.4
@@ -80,7 +77,7 @@ services:
     networks:
       - bd_meta_net
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U citizen -d citizen"]
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
       interval: 5s
       timeout: 3s
       retries: 20

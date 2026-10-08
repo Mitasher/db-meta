@@ -1,0 +1,96 @@
+name: bd_meta
+
+services:
+  nginx:
+    image: nginx:1.27-alpine
+    volumes:
+      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./nginx/html:/usr/share/nginx/html:ro
+    ports:
+      - "8090:80"
+    networks:
+      - bd_meta_net
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost/"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  #frontend:
+  #  build:
+  #    context: .
+  #    dockerfile: Dockerfile
+  #    target: frontend
+  #    args:
+  #      NEXT_PUBLIC_API_BASE_URL: ""
+  #  restart: unless-stopped
+
+  backend:
+    build: ./backend
+    environment:
+      META_DB_URL: postgresql+psycopg://${META_DB_USER}:${META_DB_PASSWORD}@meta-db:5432/${META_DB_NAME}
+      SOURCE_DB_URL: mysql+pymysql://${SOURCE_DB_USER}:${SOURCE_DB_PASSWORD}@source-db:3306/${SOURCE_DB_NAME}?charset=utf8mb4
+    networks:
+      - bd_meta_net
+    depends_on:
+      meta-db:
+        condition: service_healthy
+      source-db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  source-db:
+    image: mysql:8.4
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+    environment:
+      MYSQL_DATABASE: ${SOURCE_DB_NAME}
+      MYSQL_USER: ${SOURCE_DB_USER}
+      MYSQL_PASSWORD: ${SOURCE_DB_PASSWORD}
+      MYSQL_ROOT_PASSWORD: ${SOURCE_DB_ROOT_PASSWORD}
+    volumes:
+      - source_db_data:/var/lib/mysql
+      - ./source-db/init:/docker-entrypoint-initdb.d:ro
+    networks:
+      - bd_meta_net
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -u root -p$${MYSQL_ROOT_PASSWORD} --silent"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 180s
+
+  
+  meta-db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${META_DB_NAME}
+      POSTGRES_USER: ${META_DB_USER}
+      POSTGRES_PASSWORD: ${META_DB_PASSWORD}
+    volumes:
+       - meta_db_data:/var/lib/postgresql/data 
+    networks:
+      - bd_meta_net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U citizen -d citizen"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+networks:
+  bd_meta_net:
+    name: bd_meta_net
+
+volumes:
+  meta_db_data:
+  source_db_data:
+ 

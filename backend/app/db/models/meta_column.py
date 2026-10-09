@@ -1,6 +1,6 @@
 from typing import TYPE_CHECKING
 
-from sqlalchemy import CheckConstraint, ForeignKey, String, UniqueConstraint, text
+from sqlalchemy import CheckConstraint, ForeignKey, String, UniqueConstraint, text, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base, TimestampMixin
@@ -32,5 +32,9 @@ class MetaColumn(TimestampMixin, Base):
     is_primary_key: Mapped[bool] = mapped_column(server_default=text("false"))
     is_filterable: Mapped[bool] = mapped_column(server_default=text("true"))
     is_active: Mapped[bool] = mapped_column(server_default=text("true"))
+    is_editable: Mapped[bool] = mapped_column(server_default=text("false"))
+    is_nullable: Mapped[bool] = mapped_column(server_default=text("true"))
+    default_value: Mapped[str | None] = mapped_column(Text)
+    is_autoincrement: Mapped[bool] = mapped_column(server_default=text("false"))
 
     meta_table: Mapped["MetaTable"] = relationship(back_populates="meta_columns")

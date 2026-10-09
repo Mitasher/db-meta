@@ -14,7 +14,7 @@ class TableOut(BaseModel):
 
 
 class ColumnOut(BaseModel):
-    """Колонка: по этим полям фронт рисует таблицу и форму фильтров."""
+    """Колонка: по этим полям фронт рисует таблицу, форму фильтров и форму новой строки."""
 
     id: int
     name: str
@@ -24,11 +24,19 @@ class ColumnOut(BaseModel):
     is_primary_key: bool
     is_filterable: bool
     operators: list[str]
+    is_editable: bool
+    is_insertable: bool
+    is_nullable: bool
+    is_required: bool
 
 
 class TableMetaOut(TableOut):
-    """Таблица вместе с видимыми колонками."""
+    """Таблица вместе с видимыми колонками и правами на строки."""
 
+    can_update: bool
+    can_insert: bool
+    can_delete: bool
+    read_only_reason: str | None
     columns: list[ColumnOut]
 
 

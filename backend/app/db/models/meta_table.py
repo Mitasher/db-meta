@@ -25,7 +25,9 @@ class MetaTable(TimestampMixin, Base):
     label: Mapped[str | None] = mapped_column(String(255))
     is_visible: Mapped[bool] = mapped_column(server_default=text("true"))
     is_active: Mapped[bool] = mapped_column(server_default=text("true"))
-
+    is_editable: Mapped[bool] = mapped_column(server_default=text("false"))
+    allow_insert: Mapped[bool] = mapped_column(server_default=text("false"))
+    allow_delete: Mapped[bool] = mapped_column(server_default=text("false"))
     data_source: Mapped["DataSource"] = relationship(back_populates="tables")
     meta_columns: Mapped[list["MetaColumn"]] = relationship(
         back_populates="meta_table", order_by="MetaColumn.position"

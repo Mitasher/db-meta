@@ -18,12 +18,15 @@ class SyncError(Exception):
 @dataclass(frozen=True)
 class ReflectedColumn:
     """Колонка как в источнике."""
-
     name: str
     data_type: str
     type_group: str
     position: int
     is_primary_key: bool
+    is_nullable: bool
+    default_value: str | None
+    is_autoincrement: bool
+
 
 
 @dataclass(frozen=True)
@@ -64,6 +67,16 @@ def describe_type(column_type: TypeEngine) -> str:
     return type_name[:255]
 
 
+def detect_autoincrement(column: dict, default_value: str | None) -> bool:
+    """Значение колонки генерирует сама БД: AUTO_INCREMENT, IDENTITY или serial."""
+    if column.get("autoincrement") is True:
+        return True
+    if column.get("identity") is not None:
+        return True
+    # serial в PostgreSQL — это default nextval(...)
+    return default_value is not None and default_value.startswith("nextval(")
+
+
 def reflect_source(engine: Engine) -> tuple[str, list[ReflectedTable]]:
     """Читает таблицы, колонки и PK схемы по умолчанию."""
     inspector = inspect(engine)
@@ -75,6 +88,8 @@ def reflect_source(engine: Engine) -> tuple[str, list[ReflectedTable]]:
         )
         columns = []
         for position, column in enumerate(inspector.get_columns(table_name, schema=schema_name), start=1):
+            default = column.get("default")
+            default_value = None if default is None else str(default)
             columns.append(
                 ReflectedColumn(
                     name=column["name"],
@@ -82,9 +97,11 @@ def reflect_source(engine: Engine) -> tuple[str, list[ReflectedTable]]:
                     type_group=detect_type_group(column["type"]),
                     position=position,
                     is_primary_key=column["name"] in primary_key,
+                    is_nullable=bool(column["nullable"]),
+                    default_value=default_value,
+                    is_autoincrement=detect_autoincrement(column, default_value),
                 )
             )
-
         tables.append(ReflectedTable(name=table_name, columns=columns))
     return schema_name, tables
 
@@ -112,17 +129,23 @@ def sync_columns(table: MetaTable, reflected_columns: list[ReflectedColumn], cou
                     type_group=reflected.type_group,
                     position=reflected.position,
                     is_primary_key=reflected.is_primary_key,
+                    is_nullable=reflected.is_nullable,
+                    default_value=reflected.default_value,
+                    is_autoincrement=reflected.is_autoincrement,
                 )
             )
 
             counter.added += 1
             continue
-        
+
         changes = [
             assign(meta_column, "data_type", reflected.data_type),
             assign(meta_column, "type_group", reflected.type_group),
             assign(meta_column, "position", reflected.position),
             assign(meta_column, "is_primary_key", reflected.is_primary_key),
+            assign(meta_column, "is_nullable", reflected.is_nullable),
+            assign(meta_column, "default_value", reflected.default_value),
+            assign(meta_column, "is_autoincrement", reflected.is_autoincrement),
             assign(meta_column, "is_active", True),
         ]
 

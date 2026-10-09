@@ -18,6 +18,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    restart: unless-stopped
 
   backend:
     build: ./backend
@@ -29,6 +30,11 @@ services:
       SOURCE_DB_NAME: ${SOURCE_DB_NAME}
       SOURCE_DB_USER: ${SOURCE_DB_USER}
       SOURCE_DB_PASSWORD: ${SOURCE_DB_PASSWORD}
+      SOURCE_DB_CONSOLE_USER: ${SOURCE_DB_CONSOLE_USER}
+      SOURCE_DB_CONSOLE_PASSWORD: ${SOURCE_DB_CONSOLE_PASSWORD}
+      SQL_CONSOLE_ENABLED: ${SQL_CONSOLE_ENABLED:-false}
+      SQL_CONSOLE_TIMEOUT_MS: "5000"
+      SQL_CONSOLE_MAX_ROWS: "1000"
     networks:
       - bd_meta_net
     depends_on:
@@ -42,6 +48,7 @@ services:
       timeout: 5s
       retries: 10
       start_period: 60s
+    restart: unless-stopped
 
   source-db:
     image: mysql:8.4
@@ -53,6 +60,8 @@ services:
       MYSQL_USER: ${SOURCE_DB_USER}
       MYSQL_PASSWORD: ${SOURCE_DB_PASSWORD}
       MYSQL_ROOT_PASSWORD: ${SOURCE_DB_ROOT_PASSWORD}
+      SOURCE_DB_CONSOLE_USER: ${SOURCE_DB_CONSOLE_USER}
+      SOURCE_DB_CONSOLE_PASSWORD: ${SOURCE_DB_CONSOLE_PASSWORD}
     volumes:
       - source_db_data:/var/lib/mysql
       - ./source-db/init:/docker-entrypoint-initdb.d:ro
@@ -64,8 +73,8 @@ services:
       timeout: 5s
       retries: 20
       start_period: 180s
+    restart: unless-stopped
 
-  
   meta-db:
     image: postgres:16-alpine
     environment:

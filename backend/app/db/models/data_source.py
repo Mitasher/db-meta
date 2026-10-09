@@ -26,6 +26,8 @@ class DataSource(TimestampMixin, Base):
     database: Mapped[str] = mapped_column(String(255))
     username: Mapped[str] = mapped_column(String(255))
     password_encrypted: Mapped[str] = mapped_column(Text)
+    console_username: Mapped[str | None] = mapped_column(String(255))
+    console_password_encrypted: Mapped[str | None] = mapped_column(Text)
     last_synced_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     tables: Mapped[list["MetaTable"]] = relationship(back_populates="data_source")

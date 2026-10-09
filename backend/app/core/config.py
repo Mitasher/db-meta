@@ -13,6 +13,11 @@ class Settings:
     source_db_name: str
     source_db_user: str
     source_db_password: str
+    source_db_console_user: str
+    source_db_console_password: str
+    sql_console_enabled: bool
+    sql_console_timeout_ms: int
+    sql_console_max_rows: int
 
 
 def read_env(name: str) -> str:
@@ -31,6 +36,16 @@ def read_env_int(name: str) -> int:
     return int(value)
 
 
+def read_env_bool(name: str) -> bool:
+    """Читает обязательный флаг: true или false."""
+    value = read_env(name).lower()
+    if value == "true":
+        return True
+    if value == "false":
+        return False
+    raise RuntimeError(f"Переменная окружения {name} должна быть true или false, а сейчас: {value}")
+
+
 def load_settings() -> Settings:
     """Собирает настройки"""
     return Settings(
@@ -41,4 +56,9 @@ def load_settings() -> Settings:
         source_db_name=read_env("SOURCE_DB_NAME"),
         source_db_user=read_env("SOURCE_DB_USER"),
         source_db_password=read_env("SOURCE_DB_PASSWORD"),
+        source_db_console_user=read_env("SOURCE_DB_CONSOLE_USER"),
+        source_db_console_password=read_env("SOURCE_DB_CONSOLE_PASSWORD"),
+        sql_console_enabled=read_env_bool("SQL_CONSOLE_ENABLED"),
+        sql_console_timeout_ms=read_env_int("SQL_CONSOLE_TIMEOUT_MS"),
+        sql_console_max_rows=read_env_int("SQL_CONSOLE_MAX_ROWS"),
     )

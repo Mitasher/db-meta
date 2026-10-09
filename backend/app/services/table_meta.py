@@ -4,6 +4,12 @@ from sqlalchemy.orm import Session, joinedload, selectinload
 from app.db.models import MetaColumn, MetaTable
 from app.schemas.tables import ColumnOut, TableMetaOut, TableOut
 from app.services.type_groups import allowed_operators
+from app.services.edit_rules import (
+    column_is_editable,
+    column_is_insertable,
+    column_is_required,
+    edit_capabilities,
+)
 
 
 def list_visible_tables(session: Session, source_id: int | None) -> list[MetaTable]:
@@ -49,7 +55,8 @@ def to_table_out(meta_table: MetaTable) -> TableOut:
 
 
 def to_table_meta_out(meta_table: MetaTable) -> TableMetaOut:
-    """Таблица с колонками — контракт для фронта."""
+    """Таблица с колонками и правами — контракт для фронта."""
+    capabilities = edit_capabilities(meta_table)
     columns = [
         ColumnOut(
             id=column.id,
@@ -60,7 +67,19 @@ def to_table_meta_out(meta_table: MetaTable) -> TableMetaOut:
             is_primary_key=column.is_primary_key,
             is_filterable=column.is_filterable,
             operators=allowed_operators(column.type_group) if column.is_filterable else [],
+            is_editable=column_is_editable(capabilities, column),
+            is_insertable=column_is_insertable(capabilities, column),
+            is_nullable=column.is_nullable,
+            is_required=column_is_required(column),
         )
         for column in visible_columns(meta_table)
     ]
-    return TableMetaOut(**to_table_out(meta_table).model_dump(), columns=columns)
+    return TableMetaOut(
+        **to_table_out(meta_table).model_dump(),
+        can_update=capabilities.can_update,
+        can_insert=capabilities.can_insert,
+        can_delete=capabilities.can_delete,
+        read_only_reason=capabilities.read_only_reason,
+        columns=columns,
+    )
+

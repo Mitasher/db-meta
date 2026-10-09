@@ -29,6 +29,15 @@ def require_column(columns_by_name: dict[str, MetaColumn], name: str) -> MetaCol
     return meta_column
 
 
+def build_source_table(meta_table: MetaTable) -> TableClause:
+    """Описание таблицы источника для конструктора SQL: имена — только из метаданных, все активные колонки."""
+    return sql_table(
+        meta_table.table_name,
+        *(sql_column(column.column_name) for column in meta_table.meta_columns if column.is_active),
+        schema=meta_table.schema_name,
+    )
+
+
 def parse_scalar(value: Any, meta_column: MetaColumn) -> Any:
     """Приводит значение из JSON к типу колонки."""
     name = meta_column.column_name
@@ -172,13 +181,9 @@ def build_page_statements(meta_table: MetaTable, query: DataQueryIn) -> PageStat
     columns_by_name = {column.column_name: column for column in shown}
     selected = select_columns(query.columns, columns_by_name, shown)
 
-    # В описание таблицы идут все активные колонки, включая скрытые PK: по ним добивается сортировка
+    # Все активные колонки, включая скрытые PK: по ним добивается сортировка
     active = [column for column in meta_table.meta_columns if column.is_active]
-    source_table = sql_table(
-        meta_table.table_name,
-        *(sql_column(column.column_name) for column in active),
-        schema=meta_table.schema_name,
-    )
+    source_table = build_source_table(meta_table)
 
     conditions = []
     for filter_in in query.filters:

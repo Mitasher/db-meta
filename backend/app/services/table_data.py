@@ -1,8 +1,9 @@
+from dataclasses import dataclass
 from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
 from typing import Any
 
-from sqlalchemy import Engine, column as sql_column, func, select, table as sql_table
+from sqlalchemy import Engine, Select, column as sql_column, func, select, table as sql_table
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.sql.expression import ColumnElement, TableClause
 
@@ -154,9 +155,17 @@ def build_order_by(
             order_by.append(source_table.c[meta_column.column_name].asc())
     return order_by
 
+@dataclass(frozen=True)
+class PageStatements:
+    """Готовые запросы страницы: подсчёт строк и сами строки."""
 
-def fetch_page(engine: Engine, meta_table: MetaTable, query: DataQueryIn) -> DataPageOut:
-    """Страница данных таблицы источника по фильтрам, сортировке и пагинации."""
+    count: Select
+    data: Select
+    column_names: list[str]
+
+
+def build_page_statements(meta_table: MetaTable, query: DataQueryIn) -> PageStatements:
+    """Проверяет запрос по метаданным и собирает SQL; в источник не ходит."""
     shown = visible_columns(meta_table)
     if not shown:
         raise QueryValidationError("У таблицы нет видимых колонок")
@@ -177,27 +186,36 @@ def fetch_page(engine: Engine, meta_table: MetaTable, query: DataQueryIn) -> Dat
         conditions.append(build_condition(source_table.c[meta_column.column_name], meta_column, filter_in))
     order_by = build_order_by(source_table, columns_by_name, active, query.sort)
 
-    count_statement = select(func.count()).select_from(source_table).where(*conditions)
-    data_statement = (
-        select(*(source_table.c[column.column_name] for column in selected))
-        .where(*conditions)
-        .order_by(*order_by)
-        .limit(query.page_size)
-        .offset((query.page - 1) * query.page_size)
+    return PageStatements(
+        count=select(func.count()).select_from(source_table).where(*conditions),
+        data=(
+            select(*(source_table.c[column.column_name] for column in selected))
+            .where(*conditions)
+            .order_by(*order_by)
+            .limit(query.page_size)
+            .offset((query.page - 1) * query.page_size)
+        ),
+        column_names=[column.column_name for column in selected],
     )
+
+
+def fetch_page(engine: Engine, meta_table: MetaTable, query: DataQueryIn) -> DataPageOut:
+    """Страница данных таблицы источника по фильтрам, сортировке и пагинации."""
+    statements = build_page_statements(meta_table, query)
     try:
         with engine.connect() as connection:
-            total = connection.execute(count_statement).scalar_one()
-            rows = [dict(row._mapping) for row in connection.execute(data_statement)]
+            total = connection.execute(statements.count).scalar_one()
+            rows = [dict(row._mapping) for row in connection.execute(statements.data)]
     except SQLAlchemyError as error:
         raise SourceQueryError(
             f"Ошибка запроса к источнику: {error}. Если схема источника менялась — запустите синхронизацию"
         ) from error
 
     return DataPageOut(
-        columns=[column.column_name for column in selected],
+        columns=statements.column_names,
         rows=rows,
         total=total,
         page=query.page,
         page_size=query.page_size,
     )
+

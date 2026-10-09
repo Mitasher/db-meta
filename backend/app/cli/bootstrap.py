@@ -1,10 +1,10 @@
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.config import Settings, load_settings
-from app.crypto import encrypt_secret
-from app.db import create_meta_engine
-from app.models import DataSource
+from app.core.config import Settings, load_settings
+from app.core.crypto import encrypt_secret
+from app.db.engine import create_meta_engine
+from app.db.models import DataSource
 
 
 def ensure_default_source(session: Session, settings: Settings) -> bool:

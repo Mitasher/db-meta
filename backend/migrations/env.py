@@ -3,8 +3,11 @@ from logging.config import fileConfig
 from alembic import context
 from sqlalchemy import create_engine, pool
 
-from app.config import read_env
-from app.models import Base
+from app.core.config import read_env
+from app.db.base import Base
+# Регистрирует все таблицы в Base.metadata 
+import app.db.models  # noqa: F401
+
 
 
 def run_migrations_offline() -> None:

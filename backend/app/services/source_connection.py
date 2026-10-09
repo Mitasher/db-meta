@@ -1,8 +1,8 @@
-from sqlalchemy import URL, create_engine
+from sqlalchemy import URL, Engine, create_engine
 
-from app.crypto import decrypt_secret
-from app.db import check_engine
-from app.models import DataSource
+from app.core.crypto import decrypt_secret
+from app.db.engine import check_engine
+from app.db.models import DataSource
 
 
 def build_source_url(source: DataSource, password: str) -> URL:
@@ -29,13 +29,18 @@ def build_source_url(source: DataSource, password: str) -> URL:
     raise ValueError(f"Неизвестный тип СУБД: {source.db_type}")
 
 
+def create_source_engine(source: DataSource, secret_key: str) -> Engine:
+    """Движок для источника; ValueError — если пароль не расшифровать или тип СУБД неизвестен."""
+    url = build_source_url(source, decrypt_secret(source.password_encrypted, secret_key))
+    return create_engine(url, pool_pre_ping=True)
+
+
 def check_source(source: DataSource, secret_key: str) -> str:
     """Проверяет подключение к источнику."""
     try:
-        url = build_source_url(source, decrypt_secret(source.password_encrypted, secret_key))
+        engine = create_source_engine(source, secret_key)
     except ValueError as error:
         return f"error: {error}"
-    engine = create_engine(url)
     try:
         return check_engine(engine)
     finally:

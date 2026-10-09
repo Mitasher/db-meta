@@ -1,13 +1,11 @@
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
-from sqlalchemy import select
-from sqlalchemy.orm import Session
 
-from app.config import load_settings
-from app.db import check_engine, create_meta_engine
-from app.models import DataSource
-from app.sources import check_source
+from app.api.health import create_health_router
+from app.api.sources import create_sources_router
+from app.core.config import load_settings
+from app.db.engine import create_meta_engine
 
 
 def create_app() -> FastAPI:
@@ -20,22 +18,16 @@ def create_app() -> FastAPI:
         yield
         meta_engine.dispose()
 
-    app = FastAPI(title="bd_meta", lifespan=lifespan)
+    # Документация под /api — nginx проксирует на бэкенд только этот префикс
+    app = FastAPI(
+        title="bd_meta",
+        lifespan=lifespan,
+        docs_url="/api/docs",
+        redoc_url=None,
+        openapi_url="/api/openapi.json",
+    )
 
-    @app.get("/api/health")
-    def health() -> dict:
-        meta_status = check_engine(meta_engine)
-        sources = []
-        if meta_status == "ok":
-            with Session(meta_engine) as session:
-                for source in session.scalars(select(DataSource).order_by(DataSource.id)):
-                    sources.append(
-                        {
-                            "id": source.id,
-                            "name": source.name,
-                            "status": check_source(source, settings.secret_key),
-                        }
-                    )
-        return {"meta_db": meta_status, "sources": sources}
+    app.include_router(create_health_router(meta_engine, settings.secret_key))
+    app.include_router(create_sources_router(meta_engine, settings.secret_key))
 
     return app

@@ -8,6 +8,7 @@ from sqlalchemy.types import TypeEngine
 
 from app.db.models import DataSource, MetaColumn, MetaTable
 from app.services.source_connection import create_source_engine
+from app.services.type_groups import detect_type_group
 
 
 class SyncError(Exception):
@@ -20,6 +21,7 @@ class ReflectedColumn:
 
     name: str
     data_type: str
+    type_group: str
     position: int
     is_primary_key: bool
 
@@ -77,10 +79,12 @@ def reflect_source(engine: Engine) -> tuple[str, list[ReflectedTable]]:
                 ReflectedColumn(
                     name=column["name"],
                     data_type=describe_type(column["type"]),
+                    type_group=detect_type_group(column["type"]),
                     position=position,
                     is_primary_key=column["name"] in primary_key,
                 )
             )
+
         tables.append(ReflectedTable(name=table_name, columns=columns))
     return schema_name, tables
 
@@ -105,18 +109,23 @@ def sync_columns(table: MetaTable, reflected_columns: list[ReflectedColumn], cou
                 MetaColumn(
                     column_name=reflected.name,
                     data_type=reflected.data_type,
+                    type_group=reflected.type_group,
                     position=reflected.position,
                     is_primary_key=reflected.is_primary_key,
                 )
             )
+
             counter.added += 1
             continue
+        
         changes = [
             assign(meta_column, "data_type", reflected.data_type),
+            assign(meta_column, "type_group", reflected.type_group),
             assign(meta_column, "position", reflected.position),
             assign(meta_column, "is_primary_key", reflected.is_primary_key),
             assign(meta_column, "is_active", True),
         ]
+
         if any(changes):
             counter.updated += 1
     for name, meta_column in existing.items():

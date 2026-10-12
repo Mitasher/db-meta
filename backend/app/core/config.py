@@ -18,6 +18,7 @@ class Settings:
     sql_console_enabled: bool
     sql_console_timeout_ms: int
     sql_console_max_rows: int
+    export_max_rows: int
 
 
 def read_env(name: str) -> str:
@@ -61,4 +62,5 @@ def load_settings() -> Settings:
         sql_console_enabled=read_env_bool("SQL_CONSOLE_ENABLED"),
         sql_console_timeout_ms=read_env_int("SQL_CONSOLE_TIMEOUT_MS"),
         sql_console_max_rows=read_env_int("SQL_CONSOLE_MAX_ROWS"),
+        export_max_rows=read_env_int("EXPORT_MAX_ROWS"),
     )

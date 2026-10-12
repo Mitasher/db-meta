@@ -115,19 +115,22 @@ def assign(target: object, field_name: str, value: object) -> bool:
 
 
 def sync_columns(table: MetaTable, reflected_columns: list[ReflectedColumn], counter: SyncCounter) -> None:
-    """Сверяет колонки одной таблицы; label, is_visible, is_filterable не трогает."""
+    """Сверяет колонки одной таблицы; label, is_visible, is_filterable, is_editable и порядок не трогает."""
     existing = {column.column_name: column for column in table.meta_columns}
+    # Новые колонки встают в конец: порядок существующих мог выставить человек в админке
+    last_position = max((column.position for column in table.meta_columns), default=0)
     seen = set()
     for reflected in reflected_columns:
         seen.add(reflected.name)
         meta_column = existing.get(reflected.name)
         if meta_column is None:
+            last_position += 1
             table.meta_columns.append(
                 MetaColumn(
                     column_name=reflected.name,
                     data_type=reflected.data_type,
                     type_group=reflected.type_group,
-                    position=reflected.position,
+                    position=last_position,
                     is_primary_key=reflected.is_primary_key,
                     is_nullable=reflected.is_nullable,
                     default_value=reflected.default_value,
@@ -141,7 +144,6 @@ def sync_columns(table: MetaTable, reflected_columns: list[ReflectedColumn], cou
         changes = [
             assign(meta_column, "data_type", reflected.data_type),
             assign(meta_column, "type_group", reflected.type_group),
-            assign(meta_column, "position", reflected.position),
             assign(meta_column, "is_primary_key", reflected.is_primary_key),
             assign(meta_column, "is_nullable", reflected.is_nullable),
             assign(meta_column, "default_value", reflected.default_value),

@@ -3,6 +3,20 @@ from datetime import datetime
 from pydantic import BaseModel, ConfigDict
 
 
+class SourceOut(BaseModel):
+    """Источник данных без секретов."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    name: str
+    db_type: str
+    host: str
+    port: int
+    database: str
+    last_synced_at: datetime | None
+
+
 class SyncCounterOut(BaseModel):
     """Счётчики одного вида объектов."""
 

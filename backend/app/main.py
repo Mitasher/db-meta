@@ -2,7 +2,9 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
+from app.api.admin import create_admin_router
 from app.api.change_log import create_change_log_router
+from app.api.export import create_export_router
 from app.api.health import create_health_router
 from app.api.rows import create_rows_router
 from app.api.sources import create_sources_router
@@ -40,6 +42,8 @@ def create_app() -> FastAPI:
     app.include_router(create_tables_router(meta_engine, engine_cache))
     app.include_router(create_rows_router(meta_engine, engine_cache))
     app.include_router(create_templates_router(meta_engine, engine_cache))
+    app.include_router(create_export_router(meta_engine, engine_cache, settings.export_max_rows))
+    app.include_router(create_admin_router(meta_engine))
     app.include_router(create_change_log_router(meta_engine))
     app.include_router(
         create_sql_console_router(

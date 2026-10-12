@@ -14,19 +14,30 @@ class EditCapabilities:
     primary_key: MetaColumn | None
 
 
+def primary_key_columns(meta_table: MetaTable) -> list[MetaColumn]:
+    """Активные колонки первичного ключа."""
+    return [column for column in meta_table.meta_columns if column.is_active and column.is_primary_key]
+
+
+def primary_key_problem(meta_table: MetaTable) -> str | None:
+    """Почему строки таблицы нельзя адресовать по ключу; None — можно."""
+    pk_columns = primary_key_columns(meta_table)
+    if len(pk_columns) == 0:
+        return "У таблицы нет первичного ключа — строку нечем адресовать"
+    if len(pk_columns) > 1:
+        return "Составной первичный ключ пока не поддерживается"
+    if not pk_columns[0].is_visible:
+        return "Колонка первичного ключа скрыта — клиент не сможет указать строку"
+    return None
+
+
 def edit_capabilities(meta_table: MetaTable) -> EditCapabilities:
     """Итоговые права на строки таблицы по флагам и первичному ключу."""
-    pk_columns = [column for column in meta_table.meta_columns if column.is_active and column.is_primary_key]
+    pk_columns = primary_key_columns(meta_table)
     if not meta_table.is_editable:
         reason = "Редактирование таблицы выключено"
-    elif len(pk_columns) == 0:
-        reason = "У таблицы нет первичного ключа — строку нечем адресовать"
-    elif len(pk_columns) > 1:
-        reason = "Составной первичный ключ пока не поддерживается"
-    elif not pk_columns[0].is_visible:
-        reason = "Колонка первичного ключа скрыта — клиент не сможет указать строку"
     else:
-        reason = None
+        reason = primary_key_problem(meta_table)
     editable = reason is None
     return EditCapabilities(
         can_update=editable,

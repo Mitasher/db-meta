@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
 from typing import Any
@@ -165,16 +165,16 @@ def build_order_by(
     return order_by
 
 @dataclass(frozen=True)
-class PageStatements:
-    """Готовые запросы страницы: подсчёт строк и сами строки."""
+class QueryStatements:
+    """Готовые запросы: подсчёт строк и сами строки с выбранными колонками."""
 
     count: Select
     data: Select
-    column_names: list[str]
+    columns: list[MetaColumn]
 
 
-def build_page_statements(meta_table: MetaTable, query: DataQueryIn) -> PageStatements:
-    """Проверяет запрос по метаданным и собирает SQL; в источник не ходит."""
+def build_statements(meta_table: MetaTable, query: DataQueryIn) -> QueryStatements:
+    """Проверяет запрос по метаданным и собирает SQL без пагинации; в источник не ходит."""
     shown = visible_columns(meta_table)
     if not shown:
         raise QueryValidationError("У таблицы нет видимых колонок")
@@ -191,16 +191,30 @@ def build_page_statements(meta_table: MetaTable, query: DataQueryIn) -> PageStat
         conditions.append(build_condition(source_table.c[meta_column.column_name], meta_column, filter_in))
     order_by = build_order_by(source_table, columns_by_name, active, query.sort)
 
-    return PageStatements(
+    return QueryStatements(
         count=select(func.count()).select_from(source_table).where(*conditions),
         data=(
             select(*(source_table.c[column.column_name] for column in selected))
             .where(*conditions)
             .order_by(*order_by)
-            .limit(query.page_size)
-            .offset((query.page - 1) * query.page_size)
         ),
-        column_names=[column.column_name for column in selected],
+        columns=selected,
+    )
+
+
+def build_page_statements(meta_table: MetaTable, query: DataQueryIn) -> QueryStatements:
+    """То же, что build_statements, но строки — только запрошенной страницы."""
+    statements = build_statements(meta_table, query)
+    return replace(
+        statements,
+        data=statements.data.limit(query.page_size).offset((query.page - 1) * query.page_size),
+    )
+
+
+def source_error(error: SQLAlchemyError) -> SourceQueryError:
+    """Ошибка источника с подсказкой про синхронизацию."""
+    return SourceQueryError(
+        f"Ошибка запроса к источнику: {error}. Если схема источника менялась — запустите синхронизацию"
     )
 
 
@@ -212,12 +226,10 @@ def fetch_page(engine: Engine, meta_table: MetaTable, query: DataQueryIn) -> Dat
             total = connection.execute(statements.count).scalar_one()
             rows = [dict(row._mapping) for row in connection.execute(statements.data)]
     except SQLAlchemyError as error:
-        raise SourceQueryError(
-            f"Ошибка запроса к источнику: {error}. Если схема источника менялась — запустите синхронизацию"
-        ) from error
+        raise source_error(error) from error
 
     return DataPageOut(
-        columns=statements.column_names,
+        columns=[column.column_name for column in statements.columns],
         rows=rows,
         total=total,
         page=query.page,

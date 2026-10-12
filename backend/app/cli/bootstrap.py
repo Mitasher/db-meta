@@ -72,3 +72,7 @@ def main() -> None:
             f"data_source: пользователю консоли источника {console_source_id} "
             f"задан {settings.source_db_console_user}"
         )
+
+
+if __name__ == "__main__":
+    main()
